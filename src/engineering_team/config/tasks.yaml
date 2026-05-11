@@ -1,0 +1,56 @@
+design_task:
+  description: >
+    Take the high level requirements described here and prepare a detailed design for the engineer;
+    everything should be in 1 python module, but outline the classes and methods in the module.
+    Here are the requirements: {requirements}
+    IMPORTANT: Only output the design in markdown format, laying out in detail the classes and functions in the module, describing the functionality.
+  expected_output: >
+    A detailed design for the engineer, identifying the classes and functions in the module.
+  agent: engineering_lead
+  output_file: output/{module_name}_design.md
+
+code_task:
+  description: >
+    Write a python module that implements the design described by the engineering lead, in order to achieve the requirements.
+    Here are the requirements: {requirements}
+    Do NOT include Gradio, Streamlit, Flask, or any UI or demo app code — only the core library/module for {module_name}.
+  expected_output: >
+    A python module that implements the design and achieves the requirements.
+    IMPORTANT: Output ONLY the raw Python code without any markdown formatting, code block delimiters, or backticks.
+    The output should be valid Python code that can be directly saved to a file and executed.
+    No UI frameworks — save UI for a separate app.py task; this file must be backend-only.
+  agent: backend_engineer
+  context:
+    - design_task
+  output_file: output/{module_name}
+
+frontend_task:
+  description: >
+    Write a single file output/app.py containing ONLY a minimal Gradio UI that demonstrates the backend class {class_name} from {module_name}.
+    This task only produces source code saved to disk — do not start servers, open browsers, or "deploy" from inside the answer; the user will run `python app.py` locally when ready.
+    Assume there is only 1 user; keep inputs and layout very simple (one Interface or Blocks with a few components is enough).
+    Here are the requirements: {requirements}
+    Import rules: derive the import module from {module_name} by stripping a trailing ".py" if present (e.g. calc.py -> `from calc import {class_name}`).
+    You MUST use the class name exactly {class_name}. Do not import or reference any other project class or unrelated demo.
+    Prefer `import gradio as gr` and either gr.Interface or gr.Blocks. Put `demo.launch()` only under `if __name__ == "__main__":` so importing the file does not block.
+  expected_output: >
+    A complete Gradio app.py that imports {class_name} from the basename of {module_name} only.
+    Valid Python only — no markdown fences. The file must live next to the backend module in output/.
+  agent: frontend_engineer
+  context:
+    - code_task
+  output_file: output/app.py
+
+test_task:
+  description: >
+    Write unit tests ONLY for the backend module {module_name} and primary class {class_name}.
+    Create test_{module_name} in the same directory as the backend module (use the same basename rules as for imports).
+    Do not test any class other than {class_name}; tests must target only this run's module and class.
+  expected_output: >
+    A test module for {module_name} covering {class_name} only.
+    IMPORTANT: Output ONLY the raw Python code without any markdown formatting, code block delimiters, or backticks.
+    The output should be valid Python code that can be directly saved to a file and executed.
+  agent: test_engineer
+  context:
+    - code_task
+  output_file: output/test_{module_name}

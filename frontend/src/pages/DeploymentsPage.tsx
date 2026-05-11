@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import {
   apiBase,
+  apiHealthUrl,
   fetchOutputContent,
   fetchOutputListWithRetry,
   outputDownloadAllUrl,
@@ -415,7 +416,7 @@ export function DeploymentsPage() {
                     <code className="rounded bg-black/40 px-1">npm run stack</code>.
                     Then{' '}
                     <a
-                      href="http://127.0.0.1:8000/api/health"
+                      href={apiHealthUrl()}
                       target="_blank"
                       rel="noreferrer"
                       className="text-violet-300 underline"

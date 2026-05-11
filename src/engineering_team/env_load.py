@@ -10,12 +10,20 @@ _loaded = False
 
 
 def get_repo_root() -> Path:
-    """Project root (contains `pyproject.toml`, `src/`, `output/`)."""
+    """Project root (contains `frontend/dist`, `output/`, `pyproject.toml`).
+
+    When the package is installed with ``pip install .`` (e.g. Docker), code lives under
+    ``site-packages/`` and ``Path(__file__).parents[2]`` is not the deploy root. Set
+    ``ENGINEERING_TEAM_REPO_ROOT`` (the Dockerfile sets it to ``/app``).
+    """
+    override = os.environ.get("ENGINEERING_TEAM_REPO_ROOT", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
     return Path(__file__).resolve().parents[2]
 
 
 def load_project_env() -> None:
-    """Idempotent: load `<repo>/.env` (next to `src/`)."""
+    """Idempotent: load ``<repo_root>/.env`` (see :func:`get_repo_root`)."""
     global _loaded
     if _loaded:
         return
@@ -24,8 +32,7 @@ def load_project_env() -> None:
     except ImportError:
         _loaded = True
         return
-    # This file: <repo>/src/engineering_team/env_load.py
-    repo_root = Path(__file__).resolve().parents[2]
+    repo_root = get_repo_root()
     load_dotenv(repo_root / ".env")
     _loaded = True
 

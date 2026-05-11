@@ -1,0 +1,17 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+#
+# New → Blueprint → connect this repo. When prompted, set OPENAI_API_KEY (secret).
+# One URL serves React + FastAPI (Option A). Health: GET /api/health
+
+services:
+  - type: web
+    name: curosity
+    runtime: docker
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+    # Render injects PORT; Dockerfile CMD uses ${PORT:-8000}

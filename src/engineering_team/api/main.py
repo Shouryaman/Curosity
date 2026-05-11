@@ -16,7 +16,7 @@ from engineering_team.api.io_encoding import ensure_utf8_stdio
 from engineering_team.api.output_routes import router as output_router
 from engineering_team.api.runner import get_run, snapshot_events, start_crew_run
 from engineering_team.api.schemas import HealthResponse, RunCreate, RunCreated
-from engineering_team.env_load import load_project_env
+from engineering_team.env_load import get_repo_root, load_project_env
 
 load_project_env()
 
@@ -34,14 +34,33 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    # Vite tries 5173, 5174, 5175… if ports are busy — match localhost dev range.
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(517[3-9]|4173)",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+if _cors_origins == "*":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+elif _cors_origins:
+    _origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        # Vite tries 5173, 5174, 5175… if ports are busy — match localhost dev range.
+        allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(517[3-9]|4173)",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(output_router)
 
@@ -108,6 +127,20 @@ async def list_events(run_id: str) -> dict:
     if get_run(run_id) is None:
         raise HTTPException(status_code=404, detail="Unknown run_id")
     return {"events": snapshot_events(run_id)}
+
+
+def _mount_production_spa() -> None:
+    """Serve Vite `frontend/dist` from the same origin as the API (Docker / single-host deploy)."""
+    dist = get_repo_root() / "frontend" / "dist"
+    index = dist / "index.html"
+    if not index.is_file():
+        return
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/", StaticFiles(directory=str(dist), html=True), name="spa")
+
+
+_mount_production_spa()
 
 
 def main() -> None:

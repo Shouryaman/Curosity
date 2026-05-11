@@ -127,11 +127,49 @@ Set in `.env` or the shell before `npm run api`.
 
 ---
 
-## Production / deployment (overview)
+## Production / deployment
 
-1. **Backend** — Run Uvicorn (or gunicorn workers) with `engineering_team.api.main:app`, set env vars on the host (same keys as `.env.example`, **no** `.env` in the image if you use Docker secrets).
-2. **Frontend** — `npm run build` in `frontend/`, serve `frontend/dist` as static files and set **`VITE_API_URL`** at build time to your public API origin, **or** serve `dist` behind the same host and reverse-proxy `/api` to the API.
-3. **CORS** — Update `allow_origin_regex` in `src/engineering_team/api/main.py` for your real frontend origin(s).
+### Option A — same URL for UI + API (recommended)
+
+The repo includes a **multi-stage `Dockerfile`**: it builds `frontend/` with `VITE_API_URL` empty (browser calls `/api` on the same host), installs the Python package, copies `frontend/dist` under the deploy root, and starts Uvicorn. FastAPI mounts the SPA at `/` when `frontend/dist/index.html` exists, so **one public link** serves the React app and the API.
+
+The image sets **`ENGINEERING_TEAM_REPO_ROOT=/app`** so `output/`, static `dist/`, and `.env` (if you mount one) resolve correctly after `pip install .` (installed code no longer lives next to `pyproject.toml`).
+
+```bash
+docker build -t curosity .
+docker run --rm -p 8000:8000 -e OPENAI_API_KEY=sk-... curosity
+```
+
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000) and check [http://127.0.0.1:8000/api/health](http://127.0.0.1:8000/api/health). Platforms that set `PORT` (e.g. Render, Railway) are supported by the image `CMD`.
+
+### Deploy on Render (step by step)
+
+1. **Push this repo** to GitHub (or GitLab / Bitbucket) if it is not already there.
+2. In [Render](https://dashboard.render.com), click **New +** → **Blueprint**.
+3. Connect the repository that contains this `render.yaml`, then **Apply** the blueprint.
+4. When Render asks for a secret value, set **`OPENAI_API_KEY`** to your OpenAI (or compatible) API key.
+5. Wait for the **first build** (Docker multi-stage: frontend build + Python install can take several minutes).
+6. Open the service URL Render shows (e.g. `https://curosity.onrender.com`). That single link loads the UI; the API is at `/api/...` on the same host.
+
+**Without a blueprint:** **New +** → **Web Service** → select the repo → **Runtime: Docker** → root directory `.` → Dockerfile path `Dockerfile` → add environment variable **`OPENAI_API_KEY`** (secret) → **Create Web Service**.
+
+**Notes**
+
+- Pick an instance type with **enough RAM** for the Docker build and runtime (`pip install` of CrewAI-related deps is heavy). If the build fails with “out of memory,” upgrade the plan or add `plan: standard` (or higher) under the web service in `render.yaml`.
+- Free/starter instances may **spin down** when idle; the first request after sleep can take ~30–60s.
+- Optional env vars from `.env.example` (pipeline, timeouts, model) can be added in the service **Environment** tab.
+
+### Platform blueprints (optional)
+
+- **`render.yaml`** — Web service from this Dockerfile; `OPENAI_API_KEY` is prompted at blueprint apply (`sync: false`).
+- **`fly.toml`** — Example Fly.io app name and region; run `fly launch` / `fly secrets set OPENAI_API_KEY=...` as needed.
+
+### Split hosting (UI and API on different origins)
+
+1. Build the frontend with **`VITE_API_URL`** set to your public API base URL (e.g. `https://api.example.com`).
+2. On the API host, set **`CORS_ALLOW_ORIGINS`** to a comma-separated list of allowed web origins, or `*` for public APIs that do not need cookies (credentials are off when using `*`).
+
+If `CORS_ALLOW_ORIGINS` is unset, the API keeps the localhost Vite dev regex only.
 
 ---
 
@@ -153,6 +191,7 @@ Set in `.env` or the shell before `npm run api`.
 │   ├── crew.py         # CrewAI EngineeringTeam
 │   └── ...
 ├── output/             # Generated files (gitignored except .gitkeep)
+├── Dockerfile          # Production image (Vite build + FastAPI)
 ├── pyproject.toml
 ├── package.json        # Root scripts (api, stack, dev)
 └── README.md

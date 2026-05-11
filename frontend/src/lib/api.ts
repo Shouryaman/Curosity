@@ -1,8 +1,17 @@
-/** API base: empty string uses Vite dev proxy → FastAPI on :8000 */
+/** API base: empty string uses same origin (Docker) or Vite dev proxy → FastAPI on :8000 */
 export function apiBase(): string {
   const v = import.meta.env.VITE_API_URL as string | undefined
   if (v !== undefined && v !== '') return v.replace(/\/$/, '')
   return ''
+}
+
+/** Full URL to `/api/health` (same tab origin in production; Vite proxy in dev). */
+export function apiHealthUrl(): string {
+  const base = apiBase()
+  if (base) return `${base}/api/health`
+  if (typeof window !== 'undefined')
+    return `${window.location.origin}/api/health`
+  return '/api/health'
 }
 
 export type RunCreateBody = {
